@@ -1,25 +1,89 @@
-version: '0.1'
+version: '2.1'
 
-network_mode: "bridge"
+#network_mode: "bridge"
 
 services:
-  redis:
+  redis-master:
     build: redis/
+    environment:
+      - MASTER=true
+      - SENTINEL_MASTER_HOST=redis-master
+      - SENTINEL_MASTER_PORT=6379
+      - SENTINEL_QUORUM=2
+      - OWN_HOST=redis-master
+      - OWN_REDIS_PORT=6379
+      - OWN_SENTINEL_PORT=5000
     links:
       - consul:consul
+    networks:
+      - public
     ports:
-      - "6379:6379"
-  
+      - "16379:6379"
+      - "6000:5000"
+
+  redis-replica-1:
+    build: redis/
+    environment:
+      - MASTER=false
+      - SENTINEL_MASTER_HOST=redis-master
+      - SENTINEL_MASTER_PORT=6379
+      - SENTINEL_QUORUM=2
+      - OWN_HOST=redis-replica-1
+      - OWN_REDIS_PORT=6379
+      - OWN_SENTINEL_PORT=5000
+#      - OWN_REDIS_PORT=16380
+#      - OWN_SENTINEL_PORT=6001
+    links:
+      - consul:consul
+      - redis-master:redis-master
+    networks:
+      - public
+    ports:
+      - "16380:6379"
+      - "6001:5000"
+
+  redis-replica-2:
+    build: redis/
+    environment:
+      - MASTER=false
+      - SENTINEL_MASTER_HOST=redis-master
+      - SENTINEL_MASTER_PORT=6379
+      - SENTINEL_QUORUM=2
+      - OWN_HOST=redis-replica-2
+      - OWN_REDIS_PORT=6379
+      - OWN_SENTINEL_PORT=5000
+#      - OWN_REDIS_PORT=16381
+#      - OWN_SENTINEL_PORT=6002
+    links:
+      - consul:consul
+      - redis-master:redis-master
+    networks:
+      - public
+    ports:
+      - "16381:6379"
+      - "6002:5000"
+
+#  consul:
+#    image: consul:latest
+#    restart: always
+#    mem_limit: 128m
+#    ports:
+#      - "53:53"
+#      - "8600:8600"
+#      - "8301:8301"
+#      - "8302:8302"
+#      - "8300:8300"
+#      - "8500:8500"
+#    environment:
+#      - LOG_LEVEL=info
+#    command: "consul agent -server -bootstrap-expect=1 -data-dir=/consul/data -node=consul -bind=0.0.0.0 -config-dir=/consul/config"
   consul:
     image: consul:latest
     restart: always
-    mem_limit: 128m
+    networks:
+      - public
     ports:
-      - "53:53"
-      - "8600:8600"
-      - "8301:8301"
-      - "8302:8302"
-      - "8300:8300"
-    environment:
-      - LOG_LEVEL=info
-    command: "consul agent -server -bootstrap-expect=1 -data-dir=/consul/data -node=consul -bind=0.0.0.0 -config-dir=/consul/config"
+      - "8500:8500"
+
+networks:
+  public:

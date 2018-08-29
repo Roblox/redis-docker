@@ -16,12 +16,13 @@ RUN go get github.com/go-redis/redis \
     && chmod +x manage
 
 
-From redis:4.0.11
+FROM redis:4.0.11
 
-RUN apt-get update; \
-    apt-get install -y curl unzip; \
-    rm -rf /var/lib/apt/lists/*; \
-    mkdir app;
+RUN apt-get update && \
+    apt-get install -y curl unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN mkdir app
 
 WORKDIR /app
 
@@ -49,6 +50,9 @@ RUN curl -Lso /tmp/containerpilot.sha1.txt \
     && rm /tmp/containerpilot.tar.gz \
     && rm /tmp/containerpilot.sha1.txt
 
+RUN apt-get update && \
+    apt-get install -y procps lsof
+
 # COPY ContainerPilot configuration
 ENV CONTAINERPILOT_PATH=/etc/containerpilot.json5
 COPY containerpilot.json5 ${CONTAINERPILOT_PATH}
@@ -58,6 +62,7 @@ ENV CONTAINERPILOT=${CONTAINERPILOT_PATH}
 # COPY consul.hcl /etc/consul/
 COPY --from=builder /go/manage /app/
 COPY redis.conf /usr/local/etc/redis/redis.conf
+COPY prepare-sentinel.sh .
 
 ENV REDIS_ADDR 127.0.0.1:6379
 ENV REDIS_PASS P@ssword!

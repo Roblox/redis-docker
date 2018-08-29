@@ -1,61 +1,76 @@
 {
-  consul: "localhost:8500",
+  consul: "consul:8500",
   logging: {
     level: "DEBUG",
     format: "default",
     output: "stdout"
   },
   jobs: [
-    {
-      name: "consul-agent",
-      exec: [
-        "consul", "agent",
-        "-rejoin",
-        "-retry-join", "{{ if .CONSUL }}{{ .CONSUL }}{{ else }}consul{{ end }}",
-        "-retry-max", "10",
-        "-retry-interval", "10s",
-        "-data-dir", "/data/"
-      ],
-      health: {
-        exec: ["/app/manage", "isConsulHealthy"],
-        interval: 10,
-        ttl: 30,
-        timeout: 5
-      },
-      restarts: "unlimited"
-    },
+//consul agent -rejoin -retry-join=consul -retry-max=10 -retry-interval="10s" -data-dir=/data/
+//    {
+//      name: "consul-agent",
+//      exec: [
+//        "consul", "agent",
+//        "-rejoin",
+//        "-retry-join", "{{ if .CONSUL }}{{ .CONSUL }}{{ else }}consul{{ end }}",
+//        "-retry-max", "10",
+//        "-retry-interval", "10s",
+//        "-data-dir", "/data/"
+//      ],
+//      health: {
+//        exec: ["/app/manage", "isConsulHealthy"],
+//        interval: 10,
+//        ttl: 30,
+//        timeout: 5
+//      },
+//      restarts: "unlimited"
+//    },
     {
       name: "preStart",
-      exec: ["manage", "redisPreStart"],
-      when: {
-        source: "consul-agent",
-        once: "healthy",
-        timeout: "120s"
-      },
+      // wait for sentinels!
+      exec: ["./prepare-sentinel.sh"],
     },
     {
       name: "redis",
       exec: ["redis-server", "/usr/local/etc/redis/redis.conf"],
       restarts: "unlimited",
-      port: 6379,
       when: {
-        source: "consul-agent",
-        once: "healthy",
-        timeout: "120s"
+        source: "preStart",
+        once: "exitSuccess"
       },
       health: {
         exec: ["/app/manage", "isRedisHealthy"],
         interval: 10,
         ttl: 30,
         timeout: 3
-      }
+      },
+      // Advertised port.
+      port: {{ .OWN_REDIS_PORT }},
+      tags: [ "master={{ .MASTER }}" ],
+    },
+    {
+      name: "redis-sentinel",
+      exec: ["redis-server", "sentinel.conf", "--bind 127.0.0.1", "--sentinel"],
+      restarts: "unlimited",
+      when: {
+        source: "preStart",
+        once: "exitSuccess"
+      },
+      health: {
+        exec: ["/app/manage", "isRedisHealthy"], // BAD
+        interval: 10,
+        ttl: 30,
+        timeout: 3
+      },
+      port: {{ .OWN_SENTINEL_PORT }},
+      tags: [ "master={{ .MASTER }}" ],
     }
   ],
-  watches: [
-    {
-      name: "redis-test",
-      tag: "dev",
-      interval: 10
-    }
-  ]
+//  watches: [
+//    {
+//      name: "redis-test",
+//      tag: "dev",
+//      interval: 10
+//    }
+//  ]
 }
